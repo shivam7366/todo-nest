@@ -1,0 +1,44 @@
+<html>
+  <head>
+    <style>
+      .container {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 20px;
+        color: #333;
+        max-width: 600px;
+        margin: auto;
+        text-align: center;
+      }
+      .btn {
+        display: inline-block;
+        padding: 12px 25px;
+        background-color: #28a745;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: bold;
+        margin-top: 20px;
+      }
+      .hero-img {
+        font-size: 50px;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class='container'>
+      <div class='hero-img'>✅</div>
+      <h1>Welcome, {{name}}!</h1>
+      <p>Your account has been successfully verified. You are now ready to start
+        managing your tasks efficiently.</p>
+
+      <p>Click below to head over to your dashboard and create your first task!</p>
+
+      <a href='{{dashboardUrl}}' class='btn'>Go to Dashboard</a>
+
+      <p style='margin-top: 40px; font-size: 13px; color: #666;'>
+        Need help? Reply to this email and our team will assist you.
+      </p>
+    </div>
+  </body>
+</html>
