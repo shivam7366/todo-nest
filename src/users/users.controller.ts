@@ -12,7 +12,8 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from 'src/auth/auth.guard';
-
+import { ApiBearerAuth } from '@nestjs/swagger';
+@ApiBearerAuth()
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
@@ -29,7 +30,7 @@ export class UsersController {
   async updateUser(@Param('id') id: string, @Body() data: any) {
     return await this.userService.updateUser(id, data);
   }
-  @Delete('delete-user/:id')
+  @Patch('delete-user/:id')
   async deleteUser(@Param('id') id: string) {
     return await this.userService.deleteUser(id);
   }
