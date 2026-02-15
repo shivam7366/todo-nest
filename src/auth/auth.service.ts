@@ -33,15 +33,23 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
-    await this.userService.create({
+    const newUser = await this.userService.create({
       ...dto,
       password: hashedPassword,
       otp,
       otpExpiry,
     });
+    const tokens = await this.getTokens(
+      newUser?.data?._id?.toString(),
+      dto.email,
+      false,
+    );
     await this.mailService.sendOtpMail(dto.email, otp, dto.firstName);
 
-    return { message: 'Signup successful. Please check your email for OTP.' };
+    return {
+      message: 'Signup successful. Please check your email for OTP.',
+      ...tokens,
+    };
   }
 
   async resendOtp(dto: ResendOtpDto) {
@@ -68,10 +76,15 @@ export class AuthService {
       throw new BadRequestException('Invalid or Expired OTP!');
     }
     const updatedUser = await this.userService.updateUser(user._id.toString(), {
-      isVerified: true,
+      otpVerified: true,
       otp: null,
       otpExpiry: null,
     });
+    const tokens = await this.getTokens(
+      updatedUser.data._id.toString(),
+      updatedUser.data.email,
+      updatedUser.data.otpVerified,
+    );
 
     // Send Welcome Mail
     await this.mailService.sendWelcomeMail(
@@ -80,13 +93,13 @@ export class AuthService {
       'https://shivam-gupta.life',
     );
     return {
-      message: 'Account verified successfully!',
+      ...tokens,
       data: updatedUser.data,
+      message: 'Account verified successfully!',
     };
   }
 
   async login(dto: LoginDto) {
-    console.log(dto);
     const user = await this.userService.findUserByEmail(dto.email, true);
     if (!user) {
       throw new UnauthorizedException('Invalid Credentials!');
@@ -98,7 +111,11 @@ export class AuthService {
     if (!user.otpVerified) {
       throw new UnauthorizedException('Please verify OTP first');
     }
-    const tokens = await this.getTokens(user._id.toString(), user.email);
+    const tokens = await this.getTokens(
+      user._id.toString(),
+      user.email,
+      user.otpVerified,
+    );
 
     return {
       message: 'Login successful!',
@@ -107,8 +124,8 @@ export class AuthService {
     };
   }
 
-  private async getTokens(userId: string, email: string) {
-    const payload = { sub: userId, email };
+  private async getTokens(userId: string, email: string, otpVerified: boolean) {
+    const payload = { sub: userId, email, otpVerified };
 
     const [at, rt] = await Promise.all([
       this.jwtService.signAsync(payload, {

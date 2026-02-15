@@ -4,19 +4,21 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
-  ValidationError,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from './schema/user.schema';
 import mongoose, { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
+import { TasksService } from 'src/tasks/tasks.service';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(
+    @InjectModel(User.name) private userModel: Model<User>,
+    private taskService: TasksService,
+  ) {}
 
   async create(data: any) {
-    console.log('data ', data);
     try {
       const newUser = new this.userModel(data);
       const savedUser = await newUser.save();
@@ -28,7 +30,6 @@ export class UsersService {
         data: user,
       };
     } catch (error) {
-      console.log('error', error.name, error.message);
       if (error.name === 'ValidationError') {
         throw new BadRequestException(error.message);
       } else if (error.code === 11000) {
@@ -58,8 +59,10 @@ export class UsersService {
       );
     }
   }
+
   async findUserByID(id: string) {
     try {
+      if (!id) throw new BadRequestException(`${id} is not a valid _id`);
       const user = await this.userModel
         .findOne({
           _id: id,
@@ -68,11 +71,13 @@ export class UsersService {
       if (!user) {
         throw new NotFoundException('User not found.');
       }
+      const tasks = await this.taskService.getAllTasks(id);
       return {
         message: 'User found successfully',
-        data: user,
+        data: { user, tasks: tasks?.data },
       };
     } catch (error) {
+      console.log(error);
       throw new InternalServerErrorException(
         'An error occurred while finding user.',
       );
@@ -82,7 +87,7 @@ export class UsersService {
   async updateUser(id: string, data: any) {
     try {
       const user = await this.userModel
-        .findByIdAndUpdate(id, data, { after: true })
+        .findByIdAndUpdate(id, data, { returnDocument: 'after' })
         .exec();
       if (!user) {
         throw new NotFoundException('User not found.');
@@ -104,7 +109,7 @@ export class UsersService {
         .findByIdAndUpdate(
           { _id: id, isDeleted: false },
           { isDeleted: true, deletedAt: new Date() },
-          { after: true },
+          { returnDocument: 'after' },
         )
         .exec();
       if (!user) {
