@@ -11,12 +11,15 @@ import { MailService } from 'src/mail/mail.service';
 import { UsersService } from 'src/users/users.service';
 import {
   LoginDto,
+  LogoutDto,
+  RefreshTokenDto,
   ResendOtpDto,
   SignupDto,
   VerifyOtpDto,
 } from './dto/auth.dto';
 import * as bcrypt from 'bcrypt';
 import passport from 'passport';
+import { RedisService } from '@songkeys/nestjs-redis';
 
 @Injectable()
 export class AuthService {
@@ -24,6 +27,7 @@ export class AuthService {
     private userService: UsersService,
     private mailService: MailService,
     private jwtService: JwtService,
+    private redisService: RedisService,
   ) {}
 
   async signup(dto: SignupDto) {
@@ -31,20 +35,22 @@ export class AuthService {
     if (user) throw new ConflictException('User already exists');
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
+
     const newUser = await this.userService.create({
       ...dto,
       password: hashedPassword,
-      otp,
-      otpExpiry,
     });
+    const otp = await this.generateOtp(newUser?.data?._id?.toString());
     const tokens = await this.getTokens(
       newUser?.data?._id?.toString(),
       dto.email,
       false,
     );
-    await this.mailService.sendOtpMail(dto.email, otp, dto.firstName);
+    await this.mailService.sendOtpMail(
+      dto.email,
+      otp,
+      newUser?.data?.firstName,
+    );
 
     return {
       message: 'Signup successful. Please check your email for OTP.',
@@ -56,14 +62,9 @@ export class AuthService {
     const user = await this.userService.findUserByEmail(dto.email);
     if (!user) throw new NotFoundException('User not found');
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
+    const otp = await this.generateOtp(user?._id?.toString());
 
-    await this.userService.updateUser(user._id.toString(), {
-      otp: otp,
-      otpExpiry: otpExpiry,
-    });
-    await this.mailService.sendOtpMail(dto.email, otp, user.firstName);
+    await this.mailService.sendOtpMail(dto.email, otp, user?.firstName);
     return {
       message: 'OTP sent. Please check your email for OTP.',
     };
@@ -72,13 +73,17 @@ export class AuthService {
   async verifyOtp(dto: VerifyOtpDto) {
     const user = await this.userService.findUserByEmail(dto.email);
     if (!user) throw new NotFoundException('User not found');
-    if (user.otp != dto.otp || new Date() > user.otpExpiry) {
+
+    const otp = await this.redisService
+      .getClient()
+      .get(`${user?._id?.toString()}`);
+
+    if (!otp) throw new UnauthorizedException('Invalid or Expired OTP !');
+    if (otp !== dto.otp)
       throw new BadRequestException('Invalid or Expired OTP!');
-    }
+    await this.redisService.getClient().del(`${user?._id?.toString()}`);
     const updatedUser = await this.userService.updateUser(user._id.toString(), {
       otpVerified: true,
-      otp: null,
-      otpExpiry: null,
     });
     const tokens = await this.getTokens(
       updatedUser.data._id.toString(),
@@ -124,6 +129,43 @@ export class AuthService {
     };
   }
 
+  async refreshToken(dto: RefreshTokenDto) {
+    const { refresh_token } = dto;
+    const userId = await this.redisService.getClient().get(refresh_token);
+    if (!userId) throw new UnauthorizedException('Invalid refresh token!');
+    const decoded = this.jwtService.verify(refresh_token, {
+      secret: process.env.JWT_REFRESH_SECRET,
+    });
+    if (!decoded) throw new UnauthorizedException('Invalid refresh token!');
+    const at = await this.getTokens(userId, decoded.email, decoded.otpVerified);
+    return { ...at, message: 'Token refreshed successfully!' };
+  }
+
+  async logout(dto: LogoutDto) {
+    const { access_token, refresh_token } = dto;
+    console.log(access_token, refresh_token,'herrrrrrrrrrrrrrrr');
+    const at = await this.redisService.getClient().get(access_token);
+    if (!at) throw new UnauthorizedException('Invalid access token!');
+    const decoded = this.jwtService.verify(access_token, { secret: process.env.JWT_ACCESS_SECRET });
+    if (!decoded) throw new UnauthorizedException('Invalid access token!');
+ 
+    await this.redisService.getClient().del(access_token);
+    await this.redisService.getClient().del(refresh_token);
+    return { message: 'Logout successful!' };
+  }
+
+  private async generateOtp(userId: string) {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    await this.redisService
+      .getClient()
+      .set(`${userId}`, otp, 'EX', 5 * 60, (err) => {
+        if (err) {
+          console.error('Error setting otp in Redis:', err);
+        }
+      });
+    return otp;
+  }
+
   private async getTokens(userId: string, email: string, otpVerified: boolean) {
     const payload = { sub: userId, email, otpVerified };
 
@@ -137,10 +179,20 @@ export class AuthService {
         expiresIn: '1d',
       }),
     ]);
-
-    return {
-      access_token: at,
-      refresh_token: rt,
-    };
+    await this.redisService
+      .getClient()
+      .set(at, userId, 'EX', 50 * 60, (err) => {
+        if (err) {
+          console.error('Error setting access token in Redis:', err);
+        }
+      });
+    await this.redisService
+      .getClient()
+      .set(rt, userId, 'EX', 60 * 60 * 24, (err) => {
+        if (err) {
+          console.error('Error setting refresh token in Redis:', err);
+        }
+      });
+    return { access_token: at, refresh_token: rt };
   }
 }

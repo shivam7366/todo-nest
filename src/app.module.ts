@@ -7,10 +7,25 @@ import { UsersModule } from './users/users.module';
 import { TasksModule } from './tasks/tasks.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { MailModule } from './mail/mail.module';
+import { RedisModule } from '@songkeys/nestjs-redis';
 
 @Module({
   imports: [
+
     ConfigModule.forRoot({ isGlobal: true }),
+    RedisModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory:  (config: ConfigService) => ({
+        config:{host: config.get<string>('REDIS_HOST'),
+        port: config.get<number>('REDIS_PORT'),
+      },
+      onClientReady() {
+        console.log('Redis client ready');
+      },
+    }),
+      
+    }),
     MongooseModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

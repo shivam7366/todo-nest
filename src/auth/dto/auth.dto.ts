@@ -59,3 +59,22 @@ export class LoginDto {
   @IsNotEmpty()
   password: string;
 }
+
+export class LogoutDto {
+  @ApiProperty({ example: 'access_token_value' })
+  @IsString()
+  @IsNotEmpty()
+  access_token: string;
+
+  @ApiProperty({ example: 'refresh_token_value' })
+  @IsString()
+  @IsNotEmpty()
+  refresh_token: string;
+}
+
+export class RefreshTokenDto {
+  @ApiProperty({ example: 'refresh_token_value' })
+  @IsString()
+  @IsNotEmpty()
+  refresh_token: string;
+}

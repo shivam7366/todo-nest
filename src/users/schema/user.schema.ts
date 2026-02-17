@@ -5,12 +5,7 @@ import { Document, Query } from 'mongoose';
   timestamps: true,
   toJSON: {
     transform: (doc: any, ret: any) => {
-      if ('otp' in ret) {
-        delete ret.otp;
-      }
-      if ('otpExpiry' in ret) {
-        delete ret.otpExpiry;
-      }
+   
       if ('password' in ret) {
         delete ret.password;
       }
@@ -38,12 +33,6 @@ export class User extends Document {
 
   @Prop({ default: false })
   otpVerified: boolean;
-
-  @Prop()
-  otp: string;
-
-  @Prop()
-  otpExpiry: Date;
 
   @Prop({ default: false })
   isDeleted: boolean;
