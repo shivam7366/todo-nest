@@ -24,5 +24,12 @@ jobs:
             git pull origin main
             npm install
             npm run build
-            pm2 reload ecosystem.config.js --update-env
+            pm2 describe task-api > /dev/null
+            if [ $? -eq 0 ]; then
+              echo "App is running, reloading..."
+              pm2 reload ecosystem.config.js --update-env
+            else
+              echo "App is not running, starting..."
+              pm2 start ecosystem.config.js
+            fi
             pm2 save
