@@ -8,6 +8,6 @@ export class AppService {
     return `System is healthy and up from ${(time / 3600).toFixed(2)} hours.`;
   }
   getHome(): string {
-    return `Welcome to task manager app, Happy Learning!`;
+    return `Welcome to task manager Home, Happy Learning!`;
   }
 }
