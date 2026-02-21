@@ -20,7 +20,7 @@ jobs:
           username: ${{ secrets.USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/task-api  # Make sure this matches your folder name on EC2
+            cd ~/todo-nest  
             git pull origin main
             npm install
             npm run build
